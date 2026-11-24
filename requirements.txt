@@ -2,3 +2,5 @@ pandas
 psycopg2-binary
 gspread
 google-auth
+streamlit
+plotly
