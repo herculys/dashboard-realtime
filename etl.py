@@ -89,13 +89,8 @@ def load_to_raw(conn, df: pd.DataFrame):
 
     with conn.cursor() as cur:
         cur.execute("TRUNCATE TABLE raw.superloja_pedidos;")
-        cur.copy_from(
-            buffer,
-            "raw.superloja_pedidos",
-            sep="\t",
-            null="\\N",
-            columns=RAW_COLUMNS
-        )
+        sql = "COPY raw.superloja_pedidos FROM STDIN WITH (FORMAT CSV, DELIMITER ',', NULL '')"
+        cur.copy_expert(sql, buffer)
     conn.commit()
 
 def run_analytics_transform(conn):
