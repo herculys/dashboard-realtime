@@ -1,18 +1,21 @@
 import { neon } from '@neondatabase/serverless';
 
 export default async (req, context) => {
-  try {
-    const dbUrl = process.env.DATABASE_URL;
+  const dbUrl = process.env.DATABASE_URL || '';
 
-    if (!dbUrl) {
-      return new Response(JSON.stringify({ erro: 'DATABASE_URL não configurada neste site!' }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
+  try {
+    // Faz o parse da URL sem expor a senha
+    const parsed = new URL(dbUrl);
+    const info = {
+      protocol: parsed.protocol,
+      user: parsed.username,
+      host: parsed.hostname,
+      port: parsed.port || 'padrão',
+      db: parsed.pathname,
+      params: parsed.search
+    };
 
     const sql = neon(dbUrl);
-
     const rows = await sql`
       SELECT categoria, valor, atualizado_em 
       FROM analytics.metricas_realtime 
@@ -27,9 +30,16 @@ export default async (req, context) => {
       }
     });
   } catch (error) {
-    return new Response(JSON.stringify({ 
+    let urlInfo = 'URL inválida (não passou no new URL())';
+    try {
+      const p = new URL(dbUrl);
+      urlInfo = { host: p.hostname, user: p.username, db: p.pathname, params: p.search };
+    } catch (_) {}
+
+    return new Response(JSON.stringify({
       erro: error.message,
-      detalhe: error.cause ? String(error.cause) : null
+      node: process.version,
+      url_lida: urlInfo
     }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }
