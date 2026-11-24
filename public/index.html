@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard Tempo Real</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #0f172a; color: #f8fafc; padding: 2rem; margin: 0; }
+    .card { max-width: 720px; margin: auto; background: #1e293b; padding: 1.5rem; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); }
+    h2 { margin-top: 0; }
+    .status { font-size: 0.85rem; color: #94a3b8; margin-bottom: 1.5rem; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>Métricas em Tempo Real</h2>
+    <div class="status" id="status">Conectando ao Neon...</div>
+    <canvas id="meuGrafico"></canvas>
+  </div>
+
+  <script>
+    const INTERVALO_MS = 10000;
+    let chart;
+
+    async function atualizarDashboard() {
+      if (document.hidden) return;
+
+      try {
+        const resposta = await fetch('/.netlify/functions/dados');
+        if (!resposta.ok) throw new Error(`HTTP ${resposta.status}`);
+        
+        const dados = await resposta.json();
+        const labels = dados.map(d => d.categoria);
+        const valores = dados.map(d => Number(d.valor));
+
+        if (!chart) {
+          const ctx = document.getElementById('meuGrafico').getContext('2d');
+          chart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+              labels,
+              datasets: [{
+                label: 'Valor Atual',
+                data: valores,
+                backgroundColor: '#38bdf8',
+                borderRadius: 6
+              }]
+            },
+            options: {
+              responsive: true,
+              plugins: { legend: { labels: { color: '#f8fafc' } } },
+              scales: {
+                x: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } },
+                y: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } }
+              }
+            }
+          });
+        } else {
+          chart.data.labels = labels;
+          chart.data.datasets[0].data = valores;
+          chart.update();
+        }
+
+        document.getElementById('status').textContent =
+          `Última atualização: ${new Date().toLocaleTimeString()}`;
+      } catch (err) {
+        document.getElementById('status').textContent = `Erro: ${err.message}`;
+        console.error(err);
+      }
+    }
+
+    atualizarDashboard();
+    setInterval(atualizarDashboard, INTERVALO_MS);
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) atualizarDashboard();
+    });
+  </script>
+</body>
+</html>
