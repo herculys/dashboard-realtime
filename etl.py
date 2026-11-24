@@ -3,6 +3,9 @@ import io
 import json
 import os
 
+import unicodedata
+import re
+
 import gspread
 import pandas as pd
 from google.oauth2.service_account import Credentials
@@ -89,7 +92,7 @@ def extract_from_sheets() -> pd.DataFrame:
     # Extrai todas as linhas como lista de dicionários e converte para DataFrame
     dados = worksheet.get_all_records(numericise_ignore=["all"])
     df = pd.DataFrame(dados)
-
+    df.columns = [normalizar_coluna(col) for col in df.columns]
     print(f" -> {len(df)} linhas extraídas.")
     return df
 
@@ -114,6 +117,13 @@ def load_to_raw(conn, df: pd.DataFrame):
         ).format(sql.SQL(", ").join(sql.Identifier(column) for column in RAW_COLUMNS))
         cur.copy_expert(copy_query.as_string(conn), buffer)
     conn.commit()
+
+def normalizar_coluna(nome: str) -> str:
+    # Remove acentos (ex: "Província" -> "Provincia")
+    sem_acento = unicodedata.normalize("NFKD", str(nome)).encode("ASCII", "ignore").decode("ASCII")
+    # Troca espaços, hífens e barras por underline e deixa tudo em minúsculo
+    limpo = re.sub(r"[^a-zA-Z0-9]+", "_", sem_acento).strip("_").lower()
+    return limpo
 
 def run_analytics_transform(conn):
     with conn.cursor() as cur:
