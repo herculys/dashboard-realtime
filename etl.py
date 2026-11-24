@@ -9,7 +9,7 @@ from google.oauth2.service_account import Credentials
 import psycopg2
 from psycopg2 import sql
 
-SHEET_ID = "1dI1y9w0Wz6GzZ_jNvd9irO4fhKx45beI"
+SHEET_ID = "12V0i3oaQMFCDCBygnn66kBJLjl8vqZqQMNyn9UkhOc0"
 GID = 1776851451
 
 DATABASE_URL = os.environ["NEON_DATABASE_URL"]
@@ -87,7 +87,7 @@ def extract_from_sheets() -> pd.DataFrame:
     worksheet = spreadsheet.get_worksheet_by_id(GID)
 
     # Extrai todas as linhas como lista de dicionários e converte para DataFrame
-    dados = worksheet.get_all_records(numericise_ignore="all")
+    dados = worksheet.get_all_records(numericise_ignore=["all"])
     df = pd.DataFrame(dados)
 
     print(f" -> {len(df)} linhas extraídas.")
