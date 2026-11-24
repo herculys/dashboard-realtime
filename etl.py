@@ -1,13 +1,16 @@
-import os
-import io
 import csv
-import requests
-import pandas as pd
-import psycopg2
+import io
+import json
+import os
 
-SHEET_ID = "1dI1y9wOWz6GzZ_jNvd9irO4fhKx45beI"
-GID = "1776851451"
-CSV_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid={GID}"
+import gspread
+import pandas as pd
+from google.oauth2.service_account import Credentials
+import psycopg2
+from psycopg2 import sql
+
+SHEET_ID = "1dI1y9w0Wz6GzZ_jNvd9irO4fhKx45beI"
+GID = 1776851451
 
 DATABASE_URL = os.environ["NEON_DATABASE_URL"]
 
@@ -72,26 +75,44 @@ COMMIT;
 """
 
 def extract_from_sheets() -> pd.DataFrame:
-    response = requests.get(CSV_URL, timeout=60)
-    response.raise_for_status()
-    response.encoding = "utf-8"
+    scopes = ["https://www.googleapis.com/auth/spreadsheets.readonly"]
 
-    df = pd.read_csv(io.StringIO(response.text), dtype=str)
-    # Garante exatamente as 21 colunas esperadas na ordem da tabela raw
-    df = df.iloc[:, :len(RAW_COLUMNS)]
-    df.columns = RAW_COLUMNS
+    # Lê o JSON salvo na Secret do GitHub Actions
+    sa_info = json.loads(os.environ["GCP_SA_KEY"])
+    creds = Credentials.from_service_account_info(sa_info, scopes=scopes)
+    client = gspread.authorize(creds)
+
+    # Abre a planilha pelo ID e seleciona a aba específica pelo gid
+    spreadsheet = client.open_by_key(SHEET_ID)
+    worksheet = spreadsheet.get_worksheet_by_id(GID)
+
+    # Extrai todas as linhas como lista de dicionários e converte para DataFrame
+    dados = worksheet.get_all_records(numericise_ignore="all")
+    df = pd.DataFrame(dados)
+
+    print(f" -> {len(df)} linhas extraídas.")
     return df
 
 def load_to_raw(conn, df: pd.DataFrame):
+    missing_columns = [column for column in RAW_COLUMNS if column not in df.columns]
+    if missing_columns:
+        raise ValueError(
+            "A planilha não contém as colunas esperadas: "
+            + ", ".join(missing_columns)
+        )
+
+    df = df.loc[:, RAW_COLUMNS]
     buffer = io.StringIO()
     df.to_csv(buffer, index=False, header=False, sep="\t", na_rep="\\N", quoting=csv.QUOTE_MINIMAL)
     buffer.seek(0)
 
     with conn.cursor() as cur:
         cur.execute("TRUNCATE TABLE raw.superloja_pedidos;")
-        colunas = ", ".join(df.columns)
-        sql = f"COPY raw.superloja_pedidos ({colunas}) FROM STDIN WITH (FORMAT CSV, DELIMITER E'\t', NULL '')"
-        cur.copy_expert(sql, buffer)
+        copy_query = sql.SQL(
+            "COPY raw.superloja_pedidos ({}) "
+            "FROM STDIN WITH (FORMAT CSV, DELIMITER E'\\t', NULL E'\\\\N')"
+        ).format(sql.SQL(", ").join(sql.Identifier(column) for column in RAW_COLUMNS))
+        cur.copy_expert(copy_query.as_string(conn), buffer)
     conn.commit()
 
 def run_analytics_transform(conn):

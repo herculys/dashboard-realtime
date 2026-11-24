@@ -26,4 +26,5 @@ jobs:
       - name: Executar pipeline ELT
         env:
           NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
         run: python etl.py
