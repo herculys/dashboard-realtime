@@ -89,7 +89,7 @@ def load_to_raw(conn, df: pd.DataFrame):
 
     with conn.cursor() as cur:
         cur.execute("TRUNCATE TABLE raw.superloja_pedidos;")
-        sql = "COPY raw.superloja_pedidos FROM STDIN WITH (FORMAT CSV, DELIMITER ',', NULL '')"
+        sql = "COPY raw.superloja_pedidos FROM STDIN WITH (FORMAT CSV, DELIMITER E'\t', NULL '')"
         cur.copy_expert(sql, buffer)
     conn.commit()
 
